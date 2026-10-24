@@ -1,0 +1,9 @@
+# Environment and build outputs
+.venv/
+__pycache__/
+logs/
+test_results/
+# Component checkouts (see components.toml); each is its own git repository
+isaaclab/
+third_party/
+wt/

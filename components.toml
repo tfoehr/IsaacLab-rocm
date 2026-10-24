@@ -1,0 +1,26 @@
+# Component repositories of IsaacLab-rocm and the branches that carry the ROCm port.
+# The branches currently live in the local checkouts only.
+
+[warp]
+path = "third_party/warp-rocm"
+upstream = "https://github.com/ROCm/warp.git"   # AMD's ROCm Warp fork (based on Warp 1.13)
+base = "v1.17.0"                                # upstream NVIDIA/warp tag merged into it
+branch = "rocm-1.17-gfx1151"
+
+[newton]
+path = "third_party/newton"
+upstream = "https://github.com/newton-physics/newton.git"
+base = "71eeba16a717d4dcf0b9dd7056a7b6f863054dc3"  # Isaac Lab's pinned Newton revision
+branch = "rocm-hip"
+
+[mujoco_warp]
+path = "third_party/mujoco_warp"
+upstream = "https://github.com/google-deepmind/mujoco_warp.git"
+base = "v3.15.0"
+branch = "rocm-hip"
+
+[isaaclab]
+path = "isaaclab"
+upstream = "https://github.com/isaac-sim/IsaacLab.git"
+base = "b03345bbf"
+branch = "rocm"
