@@ -20,7 +20,7 @@ Validated end to end (`rsl_rl`, 1024 envs): `Isaac-Cartpole`, `Isaac-Ant`,
 (4096 envs, 1500 iterations, 83 min) reaches a mean reward of 28.9 with every episode running
 to the 1000-step limit.
 
-Newton's Kamino and VBD (cloth, cable) solvers do not work on ROCm yet (see known issues).
+Newton's Kamino solver does not work on ROCm yet (see known issues).
 
 ## Layout
 
@@ -114,11 +114,11 @@ and contact, ray-cast and IMU sensors.
   shared with other work: Cartpole ~138k, Ant ~65k, Flat G1 ~20k, Rough G1 ~15k env steps/s.
 - The OpenGL viewer is untested on ROCm; train headless, or watch training and trained policies
   in the browser with the viser visualizer (`--viz viser`, serves `http://localhost:8080`).
-- One MuJoCo-Warp mesh–mesh collision case misses a penetration on the GPU (floating-point
-  contraction in GJK/EPA); `wp.Texture` copies fail on HIP (memory type mapping), which blocks
-  MuJoCo-Warp ray/render and Newton SDF/hydroelastic contacts. Fixes are in progress.
-- Newton Kamino (shared memory limits, 32-bit shuffle masks, GPU-only friction drift) and VBD
-  (`nextafterf` device code guarded by `__CUDA_ARCH__`) do not work on HIP.
+- AMD GPUs have no independent thread scheduling, so GPU code where one lane waits on another
+  (spin locks) deadlocks, and on gfx1151 the driver often cannot recover from the hang (the
+  desktop freezes until a reboot). Newton's viewer picking used such a lock; it is now lock-free.
+- Newton Kamino (shared memory limits, 32-bit shuffle masks, GPU-only friction drift) does not
+  work on HIP yet; a port is in progress.
 - An intermittent GPU hang occurs in Newton's `test_collision_pipeline` when run after other tests.
 - Warp tests need the LFS assets: install `git-lfs` and run `git lfs pull` in `third_party/warp-rocm`.
 - The component branches exist in local checkouts only; push them to your own forks to share them.
