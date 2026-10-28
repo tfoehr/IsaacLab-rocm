@@ -8,7 +8,7 @@ MuJoCo-Warp solver, headless RL training) on the GPU through a HIP port of NVIDI
 
 | Works on ROCm | Cannot work on ROCm |
 |---|---|
-| Newton physics (MuJoCo-Warp, Kamino, ...) on the GPU | Isaac Sim / Omniverse Kit, the RTX renderer and RTX cameras |
+| Newton physics with the MuJoCo-Warp solver on the GPU | Isaac Sim / Omniverse Kit, the RTX renderer and RTX cameras |
 | Manager-based and direct RL tasks on the Newton backend | PhysX GPU physics (`isaaclab_physx`) and OvPhysX/OVRTX |
 | RSL-RL, skrl (PyTorch), SB3, rl_games training | XR teleoperation, Isaac Lab Mimic |
 | Ray casters, contact sensors, terrains (Warp mesh/BVH) | JAX on CUDA (`skrl-jax`) |
@@ -16,7 +16,11 @@ MuJoCo-Warp solver, headless RL training) on the GPU through a HIP port of NVIDI
 The right-hand column consists of closed-source NVIDIA binaries; there is nothing to port.
 
 Validated end to end (`rsl_rl`, 1024 envs): `Isaac-Cartpole`, `Isaac-Ant`,
-`Isaac-Velocity-Flat-G1`, `Isaac-Velocity-Rough-G1`.
+`Isaac-Velocity-Flat-G1`, `Isaac-Velocity-Rough-G1`. A full `Isaac-Velocity-Flat-G1` training
+(4096 envs, 1500 iterations, 83 min) reaches a mean reward of 28.9 with every episode running
+to the 1000-step limit.
+
+Newton's Kamino and VBD (cloth, cable) solvers do not work on ROCm yet (see known issues).
 
 ## Layout
 
@@ -91,9 +95,30 @@ is captured (CUDA guarantees they stay valid for the graph's lifetime). On HIP, 
 allocated during a Warp capture are regular device allocations owned by the captured graph
 instead (`warp.config.hip_graph_retained_allocations`).
 
+**ROCm memory pool bug.** ROCm 7.13's "VM heap" stream-ordered memory pool can zero-fill a live
+allocation after freed pool memory is reused and a host copy of ~20 KB or more touches the reused
+range (`tools/repro_hip_vmheap_pool.py` reproduces it with plain HIP calls). Warp sets
+`DEBUG_HIP_MEM_POOL_VMHEAP=0` before loading the HIP runtime, and `scripts/env.sh` exports it so it
+also applies when PyTorch initializes HIP first.
+
+## Physics validation
+
+MuJoCo-Warp's test suite (compared against MuJoCo C 3.15.0) and Newton's test suite were run on
+gfx1151. Everything Isaac Lab's locomotion tasks use passes: the MuJoCo-Warp solver, articulations
+and kinematics, joint limits, drives and actuators, contacts and friction, USD/URDF/MJCF import,
+and contact, ray-cast and IMU sensors.
+
 ## Status and known issues
 
 - Performance tuning is in progress (see `logs/`); measured with 1024 envs while the GPU was
   shared with other work: Cartpole ~138k, Ant ~65k, Flat G1 ~20k, Rough G1 ~15k env steps/s.
-- The OpenGL viewer is untested on ROCm; train headless.
+- The OpenGL viewer is untested on ROCm; train headless, or watch training and trained policies
+  in the browser with the viser visualizer (`--viz viser`, serves `http://localhost:8080`).
+- One MuJoCo-Warp mesh–mesh collision case misses a penetration on the GPU (floating-point
+  contraction in GJK/EPA); `wp.Texture` copies fail on HIP (memory type mapping), which blocks
+  MuJoCo-Warp ray/render and Newton SDF/hydroelastic contacts. Fixes are in progress.
+- Newton Kamino (shared memory limits, 32-bit shuffle masks, GPU-only friction drift) and VBD
+  (`nextafterf` device code guarded by `__CUDA_ARCH__`) do not work on HIP.
+- An intermittent GPU hang occurs in Newton's `test_collision_pipeline` when run after other tests.
+- Warp tests need the LFS assets: install `git-lfs` and run `git lfs pull` in `third_party/warp-rocm`.
 - The component branches exist in local checkouts only; push them to your own forks to share them.
