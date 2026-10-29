@@ -19,7 +19,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
 from ... import mdp
@@ -29,13 +29,26 @@ CUBE_SIZE = 0.025  # m
 CUBE_MASS = 0.03  # kg
 # Cube rest position in the robot base frame (arm faces -Y, pan axis at x ~= +0.02 m): 0.20 m ahead.
 CUBE_POS = (0.02, -0.22, CUBE_SIZE / 2)
-LIFT_HEIGHT = 0.04  # m, cube centre above the floor that counts as lifted (2.75 cm off the floor)
+LIFT_HEIGHT = 0.025  # m, cube centre above the floor that counts as lifted (12.5 mm off the floor)
+# Start pose: jaws pointing down, open, the grasp point ~0.10 m above the cube area (found with
+# scripts/so101_scripted_lift.py). It is also the action offset, so a zero action hovers over the
+# cube instead of holding the gripper horizontal 0.24 m up, which the policy had to unlearn first.
+LIFT_INIT_JOINT_POS = {
+    "shoulder_pan": 0.0,
+    "shoulder_lift": 0.0,
+    "elbow_flex": 0.1,
+    "wrist_flex": 1.37,
+    "wrist_roll": 0.0,
+    "gripper": 0.5,
+}
 
 
 @configclass
 class SO101LiftSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    robot: ArticulationCfg = SO101_ROCM_CFG
+    robot: ArticulationCfg = replace(
+        SO101_ROCM_CFG, init_state=replace(SO101_ROCM_CFG.init_state, joint_pos=LIFT_INIT_JOINT_POS)
+    )
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         init_state=RigidObjectCfg.InitialStateCfg(pos=CUBE_POS, rot=(0.0, 0.0, 0.0, 1.0)),
@@ -168,11 +181,13 @@ class TerminationsCfg:
 
 @configclass
 class CurriculumCfg:
+    # smoothness penalties after ~830 iterations (24 steps each), once lifting is found; ten times
+    # weaker than the Franka task's -1e-1, which pulled the reward down while the grasp was still forming
     action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000}
+        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-2, "num_steps": 20000}
     )
     joint_vel = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -1e-1, "num_steps": 10000}
+        func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -1e-2, "num_steps": 20000}
     )
 
 

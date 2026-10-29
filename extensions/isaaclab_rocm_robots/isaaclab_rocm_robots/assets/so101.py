@@ -11,7 +11,8 @@ Frame facts (measured from the USD, zero joint pose):
   The tasks keep the base unrotated, so base frame == world frame (minus the env origin).
 * The USD has no TCP frame. ``gripper`` is the last arm link; in its frame the jaws point along -Z.
   :data:`SO101_TCP_OFFSET` is the fingertip point (same offset as the upstream keyboard task),
-  :data:`SO101_GRASP_OFFSET` is the centre between the jaw pads.
+  :data:`SO101_GRASP_OFFSET` is where the centre of a held 25 mm cube sits (measured with
+  ``scripts/so101_scripted_lift.py``: (-0.002, 0.001, -0.079)), about 2 cm behind the fingertip.
 * The ``gripper`` joint closes towards its lower limit (-0.17 rad, jaw gap ~8 mm); 0 rad leaves a
   ~22 mm gap, 0.5 rad ~49 mm, 1.0 rad ~70 mm.
 """
@@ -23,7 +24,7 @@ from isaaclab_assets.robots.so101 import SO101_CFG
 SO101_ARM_JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
 SO101_EE_BODY = "gripper"
 SO101_TCP_OFFSET = (-0.0079, 0.0, -0.0981)
-SO101_GRASP_OFFSET = (0.0, 0.0, -0.07)
+SO101_GRASP_OFFSET = (0.0, 0.0, -0.08)
 
 SO101_ROCM_CFG = replace(
     SO101_CFG,

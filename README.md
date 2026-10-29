@@ -161,7 +161,7 @@ Results on the Radeon 8060S with 4096 environments (RSL-RL PPO):
 | Task | Iterations | Wall time | Env steps/s | Mean reward (start → end) | Episode length | Outcome |
 |---|---|---|---|---|---|---|
 | `ROCm-Reach-SO101` | 500 | 6 min | ~135k | −0.00 → 9.8 | 360 (full) | fingertip within ~1 cm on average |
-| `ROCm-Lift-Cube-SO101` | 600 | 15 min | ~67k | −0.00 → 1.7 (peak 4.0) | 180 (full) | learns to reach the cube; no lifting yet (see limitations) |
+| `ROCm-Lift-Cube-SO101` | 1500 | 35 min | ~71k | 0.03 → 182 | 180 (full) | grasps and lifts in 64/64 test envs, cube held 96% of the episode, ~4 cm from the goal (below) |
 | `IsaacContrib-Velocity-Flat-MicroDuck` | 300 | 12 min | ~42k | −0.2 → 106 | 24 → 956 of 1000 | walks; 23% of episodes still end in a fall |
 | `ROCm-HeadPose-ReachyMini` | 400 | 14 min | ~46k | −0.2 → 5.1 | 400 (full) | head orientation error 0.54 → 0.03 rad, head centre held within ~1 cm |
 
@@ -188,17 +188,34 @@ USDs, and `assets_generated/` is gitignored. The SO-101 task rewards follow
   for Reach, between the jaws for Lift). The command markers and the `Metrics/*/position_error`
   values refer to the `gripper` link origin, about 0.1 m behind the fingertip. Orientation is not
   commanded (5-DOF arm).
-- Lift is not solved yet: in 600- and 1000-iteration runs the policy learns to put the gripper on
-  the cube but does not lift it (the action-rate curriculum lowers the reward after ~420
-  iterations). It probably needs longer training (Isaac Lab's Franka lift uses 1500 iterations)
-  and reward or gripper tuning. An early version without the out-of-bounds/abnormal-state
-  terminations and observation/action clipping diverged after ~140 iterations when a cube state ran
-  away; those terms now reset such environments. One cube size and mass, no domain randomization.
+- Lift: the policy grasps the cube between the jaws and carries it towards the goal, but goal
+  tracking is coarse (fine-grained term 2.5 of 5). Per-term episode rewards, iteration 0 → 1499:
+  reaching 0.003 → 0.67 (max 1), lifting 0 → 14.1 (max 15), goal tracking 0 → 13.5 (max 16), fine
+  goal tracking 0 → 2.5 (max 5). Headless evaluation of `model_1499.pt` (64 envs × 3 episodes,
+  `extensions/isaaclab_rocm_robots/scripts/so101_eval_lift.py`): the cube is lifted in 100% of
+  episodes and above the 25 mm threshold for 96% of the steps, still held at the end in 99.5%; in
+  the last second the cube is 38 mm from the goal on average (the goal is resampled at 5 s of the
+  6 s episode). The jaw closes to ~0.05 rad on the cube, its centre 13 mm from the grasp point.
+  What made it learn (the earlier 600/1000-iteration runs never lifted): the arm now starts, and
+  zero actions hold it, with the jaws pointing down 0.1 m above the cube (before, the gripper started
+  horizontal 0.24 m up and the policy had to turn the wrist by 1.4 rad first); the grasp point used
+  by the reaching reward moved from 7 cm to 8 cm below the `gripper` link, where a held cube actually
+  sits (at 7 cm the reward peak was below the floor for the fingertips); the lift threshold dropped
+  from 40 mm to 25 mm (12.5 mm off the floor; a cube resting on an edge reaches 17.7 mm); the
+  action-rate/joint-velocity penalties ramp to −1e-2 instead of −1e-1, after ~830 iterations.
+  Physics was checked first with a scripted grasp (`so101_scripted_lift.py`: IK to above the cube,
+  descend, close, lift to 0.1 m): ~80% of 64 envs lift the cube, identically on CPU and GPU, with the
+  SysID servo gains unchanged (the jaw servo saturates at ~2.5 N·m and holds the 30 g cube); misses
+  are the single moving jaw pushing the cube away while closing. MuJoCo's elliptic friction cone
+  with `impratio=10` (as in Isaac Lab's SO-101 stack task) made the scripted grasp fail in 8/8 envs
+  (the open jaw pushed the cube into the floor), so the task keeps the pyramidal cone of the core
+  lift preset. Training prints ~20 `linesearch iterations limit reached` warnings over 1500
+  iterations, without visible effect.
 - Reachy Mini is experimental: the head-pose command does not account for the real robot's
   workspace limits (some sampled poses are unreachable), the servo model is a plain PD with a
   0.5 N·m limit, and the passive joints have no friction.
-- Not yet validated: `play.py` with these tasks (including `--viz viser` and the `-Play` ids), the
-  Rough MicroDuck task, and longer trainings than the runs above.
+- Not yet validated: `play.py` with `--viz viser` and the `-Play` ids (headless `play.py` runs the
+  Lift checkpoint), the Rough MicroDuck task, and longer trainings than the runs above.
 
 ## How the port works
 
