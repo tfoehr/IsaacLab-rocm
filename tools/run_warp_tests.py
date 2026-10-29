@@ -1,7 +1,9 @@
 """Run the Warp test suite one module per process so native crashes stay contained.
 
 Usage: python tools/run_warp_tests.py [-j JOBS] [--timeout SEC] [--filter SUBSTR] [--out DIR]
-Writes <out>/summary.json and one log per module.
+                                     [--modules MOD [MOD ...]]
+--modules runs only the named modules (relative to warp.tests, e.g. test_codegen interop.test_torch).
+Writes <out>/summary.json and one log per module. Exits 1 if a test failed or a module crashed.
 """
 
 import argparse
@@ -18,7 +20,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 WARP = ROOT / "third_party" / "warp-rocm"
 
 
-def discover(filter_substr):
+def discover(filter_substr, names=None):
+    if names:
+        mods = [n if n.startswith("warp.tests.") else f"warp.tests.{n}" for n in names]
+        missing = [m for m in mods if not (WARP / (m.replace(".", "/") + ".py")).is_file()]
+        if missing:
+            sys.exit(f"unknown test modules: {', '.join(missing)}")
+        return mods
     mods = []
     for p in sorted((WARP / "warp" / "tests").rglob("test_*.py")):
         mod = ".".join(p.relative_to(WARP).with_suffix("").parts)
@@ -55,9 +63,10 @@ def main():
     ap.add_argument("--timeout", type=int, default=1800)
     ap.add_argument("--filter", default="")
     ap.add_argument("--out", default=str(ROOT / "test_results" / "warp"))
+    ap.add_argument("--modules", nargs="+", default=None, help="run only these modules (relative to warp.tests)")
     args = ap.parse_args()
     out_dir = pathlib.Path(args.out); out_dir.mkdir(parents=True, exist_ok=True)
-    mods = discover(args.filter)
+    mods = discover(args.filter, args.modules)
     results = []
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as ex:
         futs = {ex.submit(run_one, m, args.timeout, out_dir): m for m in mods}
@@ -72,7 +81,8 @@ def main():
     print(f"\nmodules={len(results)} tests_ran={tot['ran']} failed={tot['failed']} skipped={tot['skipped']} crashed_modules={len(crashed)}")
     for c in crashed:
         print("  crashed:", c)
+    return 1 if crashed or tot["failed"] else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

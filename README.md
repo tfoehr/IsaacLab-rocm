@@ -64,6 +64,21 @@ scripts/install.sh         # Isaac Lab + Newton + MuJoCo-Warp, with the ROCm ove
 For other GPUs, use the matching TheRock index (e.g. `.../v2/gfx110X-all/`) and pin the
 torch/ROCm versions in `requirements/rocm-overrides.txt` accordingly.
 
+Then check the install with `scripts/healthcheck.sh` (see Usage).
+
+### Reproducing the validated environment
+
+`requirements/lock-2026-10-29.txt` is the `uv pip freeze` of the validated venv (component
+commits in its header, which match the `stable-2026-10-29` tags). The local checkouts
+(`third_party/*`, `isaaclab/*`) appear there only as comments because they are editable
+installs of local paths; `build_warp.sh` and `install.sh` install them. To pin every other
+package to exactly the validated versions, pass the lock file as a constraints file to the
+last step of the setup above:
+
+```bash
+scripts/install.sh --constraint requirements/lock-2026-10-29.txt
+```
+
 ## Usage
 
 ```bash
@@ -77,7 +92,34 @@ ROCm devices keep the `cuda:N` names in both PyTorch and Warp, so Isaac Lab conf
 scripts need no changes.
 
 Warp tests: `python tools/run_warp_tests.py -j 6` (one process per test module; results in
-`test_results/warp/`).
+`test_results/warp/`; `--modules test_codegen interop.test_torch ...` runs only those modules).
+
+### Health check
+
+```bash
+scripts/healthcheck.sh       # ~5 min, from any directory; no need to source env.sh first
+```
+
+It runs the GPU jobs one after another and prints a PASS/FAIL line per check, then
+`RESULT: PASS` (exit code 0) or `RESULT: FAIL` (nonzero). Logs go to `logs/healthcheck/<timestamp>/`.
+It refuses to start while another `train.py`/`play.py`/test process is running. The checks:
+
+- `device`: PyTorch and Warp see the `gfx1151` GPU and load a single `libamdhip64`;
+  a Warp kernel writes into a PyTorch tensor zero-copy; a process that used the GPU
+  reports a nonzero exit status (see "Exit status" under known issues)
+- `warp-tests`: 16 core Warp test modules (codegen, launches, atomics, graphs and HIP
+  conditional-graph emulation, torch/DLPack interop, BVH/mesh, tiles, sorts and scans)
+- `mujoco-warp`: MuJoCo-Warp's kinematics and constraint-solver tests (vs. MuJoCo C)
+- `newton-g1`: Newton's G1 example on the MuJoCo-Warp solver, 200 frames in test mode
+- `train-cartpole`, `train-g1-flat`: `Isaac-Cartpole` (256 envs, 20 iterations) and
+  `Isaac-Velocity-Flat-G1` (512 envs, 5 iterations) with RSL-RL; the run must finish and every
+  logged mean reward must be finite
+- `kernel-log`: no amdgpu ring timeout, GPU reset or page fault in `journalctl -k` since the
+  check started
+
+**Rule: do not upgrade ROCm, PyTorch, the kernel or linux-firmware without running the health
+check before and after.** If it fails afterwards, go back to the previous versions (see
+"Reproducing the validated environment" under Setup).
 
 ## How the port works
 
@@ -142,6 +184,13 @@ and contact, ray-cast and IMU sensors.
 - HIP has no conditional graph nodes, so Warp emulates `wp.capture_while`/`wp.capture_if` with
   host-driven segments. Solvers that iterate inside captured graphs pay for one host round trip
   per condition (e.g. Kamino's APGD solver: the DR Legs dynamics test takes ~5 min).
+- Exit status: PyTorch's Kineto registers a rocprofiler-sdk tool whose `atexit` handler calls
+  `_exit(0)`, so with the PyTorch ROCm nightly every Python process that used the GPU exits with
+  status 0, even after an exception. `scripts/env.sh` sets `ROCPROFILER_REGISTER_ENABLED=0`, which
+  restores exit codes (`torch.profiler` still works, without rocprofiler GPU traces). Run
+  training and tests from a shell that sourced `env.sh`, or scripts cannot detect failures.
+- `scripts/build_warp.sh` clears Warp's kernel cache (`~/.cache/warp`) at the end of the build.
+  Do not rebuild while Warp programs are running; set `WARP_CACHE_PATH` to give an install its own cache.
 - Warp tests need the LFS assets. The fork does not host them; install `git-lfs` and fetch them
   from AMD's repository:
   `git -C third_party/warp-rocm config lfs.url https://github.com/ROCm/warp.git/info/lfs && git -C third_party/warp-rocm lfs pull`
