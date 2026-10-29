@@ -2,6 +2,12 @@
 .venv/
 __pycache__/
 logs/
+# Robot assets converted by tools/convert_assets.py (licenses forbid committing them)
+assets_generated/
+# Local research checkouts and downloads (third-party licenses)
+assets_research/
+# Python packaging artifacts
+*.egg-info/
 test_results/
 # Component checkouts (see components.toml); each is its own git repository
 isaaclab/

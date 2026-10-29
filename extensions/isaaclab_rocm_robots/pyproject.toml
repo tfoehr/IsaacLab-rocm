@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_rocm_robots"
+version = "0.1.0"
+description = "Isaac Lab tasks for the SO-101 arm and Reachy Mini on the IsaacLab-rocm Newton/MuJoCo-Warp stack."
+requires-python = ">=3.12,<3.13"
+license = "BSD-3-Clause"
+# isaaclab, isaaclab_newton, isaaclab_assets, isaaclab_tasks and isaaclab_rl come from the local
+# Isaac Lab checkout (scripts/install.sh); they are not declared here so that installing this
+# package never pulls Isaac Lab or CUDA wheels from an index.
+dependencies = []
+
+# Isaac Lab's train/play entry points import every module registered in this group
+# (isaaclab.cli.load_external_tasks), so the ROCm-* gym ids appear without editing Isaac Lab.
+[project.entry-points."isaaclab.tasks"]
+isaaclab_rocm_robots = "isaaclab_rocm_robots.tasks"
+
+[tool.setuptools.packages.find]
+include = ["isaaclab_rocm_robots*"]

@@ -26,6 +26,17 @@ uv pip install --python "$py" --no-sources \
     --override "$root/requirements/rocm-overrides.txt" \
     "${editables[@]}" "${extras[@]}" "$@"
 
+# Robot tasks for experiments (ROCm-* gym ids, registered through the isaaclab.tasks entry point).
+uv pip install --python "$py" --no-deps -e "$root/extensions/isaaclab_rocm_robots"
+
+# Kit-less URDF/MJCF importers for tools/convert_assets.py (NVIDIA's index; Isaac Lab's
+# "importers" extra with converter versions that match MuJoCo 3.15). Changes no installed package.
+uv pip install --python "$py" --no-sources \
+    --index-url https://pypi.nvidia.com --extra-index-url https://pypi.org/simple \
+    --index-strategy unsafe-best-match --prerelease allow \
+    --override "$root/requirements/rocm-overrides.txt" --override "$root/requirements/importers.txt" \
+    -r "$root/requirements/importers.txt"
+
 # The path overrides above install the local checkouts as regular packages; switch them to
 # editable installs so changes in third_party/ take effect without reinstalling.
 uv pip install --python "$py" --no-deps --no-sources \
