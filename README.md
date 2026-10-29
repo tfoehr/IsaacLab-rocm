@@ -16,18 +16,20 @@ MuJoCo-Warp solver, headless RL training) on the GPU through a HIP port of NVIDI
 The right-hand column consists of closed-source NVIDIA binaries; there is nothing to port.
 
 Validated end to end (`rsl_rl`, 1024 envs): `Isaac-Cartpole`, `Isaac-Ant`,
-`Isaac-Velocity-Flat-G1`, `Isaac-Velocity-Rough-G1`. A full `Isaac-Velocity-Flat-G1` training
-(4096 envs, 1500 iterations, 83 min) reaches a mean reward of 28.9 with every episode running
-to the 1000-step limit.
+`Isaac-Velocity-Flat-G1`, `Isaac-Velocity-Rough-G1`. Full trainings with 4096 envs:
+`Isaac-Velocity-Flat-G1` (1500 iterations, 83 min) reaches a mean reward of 28.9 and
+`Isaac-Velocity-Rough-G1` (5000 iterations, 6.5 h) reaches 28.7, with episodes running to the
+1000-step limit.
 
 Newton's Kamino solver also runs on the GPU: its 681 unit tests and 29 examples pass, and the
 G1, H1 and ANYmal examples match the CPU.
 
 ## Layout
 
-- `third_party/warp-rocm`: Warp 1.17 with the HIP backend (branch `rocm-1.17-gfx1151`)
-- `third_party/newton`, `third_party/mujoco_warp`: small ROCm fixes (branch `rocm-hip`)
-- `isaaclab`: Isaac Lab (branch `rocm`), currently unmodified
+- `third_party/warp-rocm`: Warp 1.17 with the HIP backend ([tfoehr/warp](https://github.com/tfoehr/warp), branch `rocm-1.17-gfx1151`)
+- `third_party/newton`: ROCm fixes and the Kamino GPU port ([tfoehr/newton](https://github.com/tfoehr/newton), branch `rocm-hip`)
+- `third_party/mujoco_warp`: small ROCm fixes ([tfoehr/mujoco_warp](https://github.com/tfoehr/mujoco_warp), branch `rocm-hip`)
+- `isaaclab`: upstream Isaac Lab at commit `b03345bbf`, unmodified
 - `components.toml`: upstream, base revision and branch of each component
 - `scripts/`: environment, build and install scripts; `tools/run_warp_tests.py`: crash-isolated Warp test runner
 
@@ -36,6 +38,16 @@ G1, H1 and ANYmal examples match the CPU.
 Requirements: Linux, an AMD GPU supported by the TheRock ROCm nightlies, `uv`, GCC.
 The ROCm toolchain comes from Python packages in the venv; a system ROCm is not needed
 and is deliberately not used.
+
+```bash
+git clone https://github.com/tfoehr/IsaacLab-rocm.git && cd IsaacLab-rocm
+GIT_LFS_SKIP_SMUDGE=1 git clone -b stable-2026-10-29 https://github.com/tfoehr/warp.git third_party/warp-rocm
+git clone -b stable-2026-10-29 https://github.com/tfoehr/newton.git third_party/newton
+git clone -b stable-2026-10-29 https://github.com/tfoehr/mujoco_warp.git third_party/mujoco_warp
+git clone https://github.com/isaac-sim/IsaacLab.git isaaclab && git -C isaaclab checkout b03345bbf
+```
+
+The `stable-2026-10-29` tags mark the state validated above; the branches carry newer work.
 
 ```bash
 uv venv --python 3.12 .venv
@@ -130,5 +142,6 @@ and contact, ray-cast and IMU sensors.
 - HIP has no conditional graph nodes, so Warp emulates `wp.capture_while`/`wp.capture_if` with
   host-driven segments. Solvers that iterate inside captured graphs pay for one host round trip
   per condition (e.g. Kamino's APGD solver: the DR Legs dynamics test takes ~5 min).
-- Warp tests need the LFS assets: install `git-lfs` and run `git lfs pull` in `third_party/warp-rocm`.
-- The component branches exist in local checkouts only; push them to your own forks to share them.
+- Warp tests need the LFS assets. The fork does not host them; install `git-lfs` and fetch them
+  from AMD's repository:
+  `git -C third_party/warp-rocm config lfs.url https://github.com/ROCm/warp.git/info/lfs && git -C third_party/warp-rocm lfs pull`
