@@ -14,6 +14,9 @@ members=(isaaclab isaaclab_assets isaaclab_contrib isaaclab_experimental isaacla
          isaaclab_physx isaaclab_ppisp isaaclab_rl isaaclab_tasks isaaclab_tasks_experimental isaaclab_visualizers)
 editables=(-e "$root/third_party/warp-rocm" -e "$root/third_party/mujoco_warp" -e "$root/third_party/newton[sim]" -e "$il")
 for m in "${members[@]}"; do editables+=(-e "$il/source/$m"); done
+# Browser viewer (--viz viser), Newton recordings and remeshing, and the test runners
+# (Newton/MuJoCo-Warp tests, scripts/healthcheck.sh).
+extras=("viser>=1.1.1" "cbor2>=5.7.0" "pyfqmr>=0.5.0" pytest pytest-xdist pytest-timeout)
 
 # --no-sources: ignore Isaac Lab's CUDA torch index and git sources; the overrides pin the ROCm stack.
 uv pip install --python "$py" --no-sources \
@@ -21,7 +24,7 @@ uv pip install --python "$py" --no-sources \
     --extra-index-url https://rocm.nightlies.amd.com/v2/gfx1151/ \
     --index-strategy unsafe-best-match --prerelease allow \
     --override "$root/requirements/rocm-overrides.txt" \
-    "${editables[@]}" "$@"
+    "${editables[@]}" "${extras[@]}" "$@"
 
 # The path overrides above install the local checkouts as regular packages; switch them to
 # editable installs so changes in third_party/ take effect without reinstalling.
