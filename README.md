@@ -121,6 +121,85 @@ It refuses to start while another `train.py`/`play.py`/test process is running. 
 check before and after.** If it fails afterwards, go back to the previous versions (see
 "Reproducing the validated environment" under Setup).
 
+## Robots for experiments
+
+`extensions/isaaclab_rocm_robots` (installed editable by `scripts/install.sh`) adds tasks for
+small real robots. It registers its gym ids through Isaac Lab's `isaaclab.tasks` entry point, so
+`train.py`/`play.py` find them without changes to Isaac Lab.
+
+| Task id | Robot | What it learns |
+|---|---|---|
+| `ROCm-Reach-SO101` | TheRobotStudio SO-101 arm | move the fingertip to points 0.15-0.30 m ahead, ±0.15 m sideways, 0.05-0.25 m high; joint position targets on the 5 arm joints |
+| `ROCm-Lift-Cube-SO101` | SO-101 | pick a 25 mm, 30 g cube off the floor and hold it at a goal point; arm joint targets plus open/close gripper |
+| `IsaacContrib-Velocity-Flat-MicroDuck`, `IsaacContrib-Velocity-Rough-MicroDuck` | Pollen Robotics MicroDuck biped | velocity-command walking (Isaac Lab's own tasks, used unchanged) |
+| `ROCm-HeadPose-ReachyMini` (experimental) | Pollen Robotics Reachy Mini | turn the head (Stewart platform plus body yaw) to roll/pitch ±0.4 rad, yaw ±1.0 rad |
+
+Every `ROCm-*` id has a `-Play` variant (smaller scene, no observation noise). The SO-101 tasks use
+the SysID servo model from NVIDIA's hosted SO-101 USD (STS3215, 3.35 N·m); Reachy Mini uses
+XL330-like servos (0.5 N·m) with passive ball joints and five loop closures solved as MuJoCo
+equality constraints.
+
+```bash
+source scripts/env.sh
+python tools/convert_assets.py        # once, for Reachy Mini (CPU only, ~10 s); see below
+cd isaaclab
+python scripts/reinforcement_learning/train.py --rl_library rsl_rl --task ROCm-Reach-SO101 \
+    --num_envs 4096 --max_iterations 500 --device cuda:0
+# watch the latest checkpoint in the browser (http://localhost:8080)
+python scripts/reinforcement_learning/play.py --rl_library rsl_rl --task ROCm-Reach-SO101 \
+    --checkpoint latest --num_envs 16 --viz viser --device cuda:0
+```
+
+`play.py` applies the play settings to any task id; `--checkpoint latest` looks up runs by task
+id, so play the id you trained (or give a `-Play` id an explicit `--checkpoint <path to model_N.pt>`).
+Runs are logged under `isaaclab/logs/rsl_rl/<experiment>/` (`rocm_so101_reach`,
+`rocm_so101_lift`, `rocm_reachy_mini_head`, `microduck_velocity_flat`). The MicroDuck agent config
+asks for 50000 iterations; pass `--max_iterations`.
+
+Results on the Radeon 8060S with 4096 environments (RSL-RL PPO):
+
+| Task | Iterations | Wall time | Env steps/s | Mean reward (start → end) | Episode length | Outcome |
+|---|---|---|---|---|---|---|
+| `ROCm-Reach-SO101` | 500 | 6 min | ~135k | −0.00 → 9.8 | 360 (full) | fingertip within ~1 cm on average |
+| `ROCm-Lift-Cube-SO101` | 600 | 15 min | ~67k | −0.00 → 1.7 (peak 4.0) | 180 (full) | learns to reach the cube; no lifting yet (see limitations) |
+| `IsaacContrib-Velocity-Flat-MicroDuck` | 300 | 12 min | ~42k | −0.2 → 106 | 24 → 956 of 1000 | walks; 23% of episodes still end in a fall |
+| `ROCm-HeadPose-ReachyMini` | 400 | 14 min | ~46k | −0.2 → 5.1 | 400 (full) | head orientation error 0.54 → 0.03 rad, head centre held within ~1 cm |
+
+**Assets.** The SO-101 and MicroDuck USDs are NVIDIA-hosted and download on first use (no Kit
+needed). Reachy Mini is converted locally: `tools/convert_assets.py` fetches the official MJCF from
+[pollen-robotics/reachy_mini](https://github.com/pollen-robotics/reachy_mini) at a pinned commit
+(needs `git-lfs`), converts it with Isaac Lab's kit-less MJCF importer into `assets_generated/`,
+and checks it with Newton and MuJoCo on the CPU. The importers (`requirements/importers.txt`,
+from pypi.nvidia.com) are installed into the main venv by `scripts/install.sh`; they change no
+package of the validated environment. `uv pip check` lists their exact pins on MuJoCo,
+usd-exchange and usd-optimize, which Isaac Lab overrides as it does for torch.
+
+**Licenses.** The Reachy Mini hardware files (meshes) are CC BY-NC-SA (the reachy_mini code is
+Apache-2.0); [microduck_rl](https://github.com/pollen-robotics/microduck_rl) now licenses its
+MicroDuck meshes CC BY-NC-SA 4.0 as well (`LICENSE-MODELS.md`), while the `ATTRIBUTION.txt` next to
+NVIDIA's hosted MicroDuck USD cites an older Apache-2.0 revision. Treat both robots' geometry as
+non-commercial and do not redistribute converted files: this repository commits no robot meshes or
+USDs, and `assets_generated/` is gitignored. The SO-101 task rewards follow
+[MuammerBay/isaac_so_arm101](https://github.com/MuammerBay/isaac_so_arm101) (BSD-3-Clause).
+
+**Known limitations.**
+
+- SO-101: the USD has no tool frame, so rewards use fixed offsets from the `gripper` link (fingertip
+  for Reach, between the jaws for Lift). The command markers and the `Metrics/*/position_error`
+  values refer to the `gripper` link origin, about 0.1 m behind the fingertip. Orientation is not
+  commanded (5-DOF arm).
+- Lift is not solved yet: in 600- and 1000-iteration runs the policy learns to put the gripper on
+  the cube but does not lift it (the action-rate curriculum lowers the reward after ~420
+  iterations). It probably needs longer training (Isaac Lab's Franka lift uses 1500 iterations)
+  and reward or gripper tuning. An early version without the out-of-bounds/abnormal-state
+  terminations and observation/action clipping diverged after ~140 iterations when a cube state ran
+  away; those terms now reset such environments. One cube size and mass, no domain randomization.
+- Reachy Mini is experimental: the head-pose command does not account for the real robot's
+  workspace limits (some sampled poses are unreachable), the servo model is a plain PD with a
+  0.5 N·m limit, and the passive joints have no friction.
+- Not yet validated: `play.py` with these tasks (including `--viz viser` and the `-Play` ids), the
+  Rough MicroDuck task, and longer trainings than the runs above.
+
 ## How the port works
 
 **Warp on HIP.** AMD's ROCm Warp fork (Warp 1.13, MI300-class `gfx942`) was merged up to
