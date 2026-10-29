@@ -20,7 +20,8 @@ Validated end to end (`rsl_rl`, 1024 envs): `Isaac-Cartpole`, `Isaac-Ant`,
 (4096 envs, 1500 iterations, 83 min) reaches a mean reward of 28.9 with every episode running
 to the 1000-step limit.
 
-Newton's Kamino solver does not work on ROCm yet (see known issues).
+Newton's Kamino solver also runs on the GPU: its 681 unit tests and 29 examples pass, and the
+G1, H1 and ANYmal examples match the CPU.
 
 ## Layout
 
@@ -101,6 +102,15 @@ range (`tools/repro_hip_vmheap_pool.py` reproduces it with plain HIP calls). War
 `DEBUG_HIP_MEM_POOL_VMHEAP=0` before loading the HIP runtime, and `scripts/env.sh` exports it so it
 also applies when PyTorch initializes HIP first.
 
+**ROCm queue wedge.** Relaunching a graph of ~600 or more nodes back to back without host
+synchronization wedges the device queue on ROCm 7.13: the command processor stops reading it, no
+kernel runs, and the host blocks in `hipGraphLaunch`. Warp waits for earlier graph launches on a
+stream once more than `warp.config.hip_graph_max_inflight_nodes` (8192) nodes are queued.
+
+**Graph-capturable sorts.** With many segments, rocPRIM's segmented radix sort reads partition
+counts back to the host, which a graph capture rejects; Warp sorts without partitioning while
+capturing on HIP.
+
 ## Physics validation
 
 MuJoCo-Warp's test suite (compared against MuJoCo C 3.15.0) and Newton's test suite were run on
@@ -117,8 +127,8 @@ and contact, ray-cast and IMU sensors.
 - AMD GPUs have no independent thread scheduling, so GPU code where one lane waits on another
   (spin locks) deadlocks, and on gfx1151 the driver often cannot recover from the hang (the
   desktop freezes until a reboot). Newton's viewer picking used such a lock; it is now lock-free.
-- Newton Kamino (shared memory limits, 32-bit shuffle masks, GPU-only friction drift) does not
-  work on HIP yet; a port is in progress.
-- An intermittent GPU hang occurs in Newton's `test_collision_pipeline` when run after other tests.
+- HIP has no conditional graph nodes, so Warp emulates `wp.capture_while`/`wp.capture_if` with
+  host-driven segments. Solvers that iterate inside captured graphs pay for one host round trip
+  per condition (e.g. Kamino's APGD solver: the DR Legs dynamics test takes ~5 min).
 - Warp tests need the LFS assets: install `git-lfs` and run `git lfs pull` in `third_party/warp-rocm`.
 - The component branches exist in local checkouts only; push them to your own forks to share them.
