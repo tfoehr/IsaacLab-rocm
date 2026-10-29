@@ -10,4 +10,8 @@ export ISAACLAB_ROCM_ROOT="$_ilr_root"
 # ROCm 7.13's VM-heap memory pool can zero-fill live allocations after pool memory is reused;
 # use the classic pool. Must be set before any library initializes HIP.
 export DEBUG_HIP_MEM_POOL_VMHEAP=0
+# PyTorch's Kineto registers a rocprofiler-sdk tool whose atexit handler calls _exit(0), so every
+# Python process that used the GPU exits with status 0, even after an exception or sys.exit(1).
+# Disabling rocprofiler tool registration keeps exit codes intact.
+export ROCPROFILER_REGISTER_ENABLED=0
 unset _ilr_root
