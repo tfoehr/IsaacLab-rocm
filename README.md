@@ -217,6 +217,26 @@ USDs, and `assets_generated/` is gitignored. The SO-101 task rewards follow
 - Not yet validated: `play.py` with `--viz viser` and the `-Play` ids (headless `play.py` runs the
   Lift checkpoint), the Rough MicroDuck task, and longer trainings than the runs above.
 
+### Training speed options
+
+Measured with `Isaac-Velocity-Flat-G1`, 4096 envs, RSL-RL (2026-10-30):
+
+- **bfloat16 policy update** (recommended for longer runs): add `agent.algorithm.use_mixed_precision=True`
+  to the `train.py` command line (an Isaac Lab/RSL-RL option, off by default). RDNA 3.5 has bfloat16
+  matrix instructions but no TF32, so the PPO update runs at about twice the speed: learning time
+  0.45 s -> 0.22 s per iteration, 41.0k -> 45.5k env steps/s. Over 300 iterations (seed 42) it learned
+  as well as float32 (mean reward of the last 20 iterations 12.1 vs 10.3, episode length 996 vs 994,
+  wall time 722 s vs 796 s). It changes floating-point results, so runs are not comparable bit for bit
+  with float32 runs.
+- Without effect, not adopted: `agent.torch_compile_mode=default` (same speed, 8 s more startup),
+  `HIP_FORCE_DEV_KERNARG=1`, `PYTORCH_HIP_ALLOC_CONF=expandable_segments:True`,
+  `TORCH_BLAS_PREFER_HIPBLASLT` (hipBLASLt is slower than the default rocBLAS here).
+- PyTorch TunableOp (`PYTORCH_TUNABLEOP_ENABLED=1`) finds faster float32 GEMMs for the PPO MLPs (13.0 vs
+  17.8 ms per update step in isolation), but Isaac Lab's `train.py` enables TF32 matmuls and TunableOp
+  has no TF32 candidates on ROCm, so it changes nothing as shipped. With TF32 disabled (requires
+  editing `isaaclab_rl/entrypoints/backends/train_rsl_rl.py`, which this repository leaves unmodified)
+  it would reduce the learning time to 0.33 s per iteration (+5%); bfloat16 is faster still.
+
 ## How the port works
 
 **Warp on HIP.** AMD's ROCm Warp fork (Warp 1.13, MI300-class `gfx942`) was merged up to
@@ -281,6 +301,22 @@ HIP the solve now runs on a whole wavefront (each lane owns rows, values are bro
 are in flight (same operations in the same order, bitwise identical factors). Per call: 2.86 ms ->
 1.19 ms (MuJoCo-Warp, 4096 worlds) and 208 us -> 59 us (Kamino).
 
+The factor-and-solve kernel was then limited by occupancy, not arithmetic: it gathers the
+mass-matrix block with `wp.tile_load_indexed`, which staged the n*n gather indices in shared memory,
+doubling the kernel's shared memory (15.2 KB for G1's 43x43 block) and halving the blocks per
+compute unit. For 1D gathers each thread only needs the indices of its own elements, so Warp now
+keeps a register indices tile in registers there. MuJoCo-Warp also picks the block size of its dense
+tile Cholesky kernels from the block size on HIP (one wave32 wavefront up to ~36 dofs, two up to
+~60, four beyond; measured per size, explicitly configured `BlockDim` values are kept). G1
+factor-and-solve: 1.19 ms -> 0.57 ms per call, with bitwise identical results.
+
+**Graph node count.** Every node of a captured graph costs ~2.4 us of dispatch gap on gfx1151,
+independent of its work. ROCm implements `hipMemsetAsync` with up to three fill kernels (head,
+16-byte aligned body, tail), so on HIP Warp sets memory with its own kernel in a single dispatch.
+Kamino's APGD loop zeroes its operator temporaries in one launch instead of three and resets its
+loop conditions inside the preceding kernel instead of with separate memsets. DR Legs: 722k -> 493k
+dispatches per 30 steps.
+
 **Graph-capturable sorts.** With many segments, rocPRIM's segmented radix sort reads partition
 counts back to the host, which a graph capture rejects; Warp sorts without partitioning while
 capturing on HIP.
@@ -294,12 +330,20 @@ and contact, ray-cast and IMU sensors.
 
 ## Status and known issues
 
-- Performance: with 4096 envs (RSL-RL, median env steps/s over iterations 2-11), before -> after
-  the tile-solver and launch-budget changes in Warp (2026-10-30): `Isaac-Velocity-Flat-G1` 29.8k ->
-  37.6k, `IsaacContrib-Velocity-Flat-MicroDuck` 42.9k -> 47.7k, `ROCm-Lift-Cube-SO101` 82.6k -> 83.8k.
-  MuJoCo-Warp `testspeed` humanoid with 8192 worlds: 808k -> 884k steps/s. Kamino DR Legs dynamics
-  test: 297 s -> 143 s. Older numbers in `logs/` were measured with 1024 envs while the GPU was shared
-  with other work.
+- Performance: with 4096 envs (RSL-RL, median env steps/s over iterations 2-11), at the
+  `stable-2026-10-29` tags -> after the tile-solver and launch-budget changes (2026-10-30) -> after the
+  shared-memory, block-size and graph-node changes (2026-10-30, later):
+
+  | Benchmark | stable-2026-10-29 | tile solvers | current |
+  |---|---|---|---|
+  | `Isaac-Velocity-Flat-G1` | 29.8k | 37.6k | 41.2k |
+  | `IsaacContrib-Velocity-Flat-MicroDuck` | 42.9k | 47.7k | 49.9k |
+  | `ROCm-Lift-Cube-SO101` | 82.6k | 83.8k | 84.6k |
+  | MuJoCo-Warp `testspeed` humanoid, 8192 worlds (steps/s) | 808k | 884k | 927k |
+  | Kamino DR Legs dynamics test | 297 s | 143 s | 127 s |
+
+  Older numbers in `logs/` were measured with 1024 envs while the GPU was shared with other work.
+  See "Training speed options" below for RSL-RL settings that speed up the policy update.
 - The OpenGL viewer is untested on ROCm; train headless, or watch training and trained policies
   in the browser with the viser visualizer (`--viz viser`, serves `http://localhost:8080`).
 - AMD GPUs have no independent thread scheduling, so GPU code where one lane waits on another
@@ -309,13 +353,17 @@ and contact, ray-cast and IMU sensors.
   host-driven segments. Solvers that iterate inside captured graphs pay for one host round trip
   (~8 us) per condition, and the host waits inside `wp.capture_launch` until the last loop has
   finished, so it cannot queue the next work ahead (see "Conditional graphs").
-- Kamino's DR Legs dynamics test (2.5 min) spends ~40% of the GPU's time idle between its many
-  small graph nodes (~2.5 us each on ROCm) and ~8% in condition round trips.
+- Kamino's DR Legs dynamics test (2 min) still spends ~39% of the GPU's time idle between its many
+  small graph nodes (~2.4 us each on ROCm) and in condition round trips; its bilateral sparse
+  Cholesky solve (54 us per call, latency-bound on one world) is most of the busy time.
 - Exit status: PyTorch's Kineto registers a rocprofiler-sdk tool whose `atexit` handler calls
   `_exit(0)`, so with the PyTorch ROCm nightly every Python process that used the GPU exits with
   status 0, even after an exception. `scripts/env.sh` sets `ROCPROFILER_REGISTER_ENABLED=0`, which
   restores exit codes (`torch.profiler` still works, without rocprofiler GPU traces). Run
   training and tests from a shell that sourced `env.sh`, or scripts cannot detect failures.
+- Warp's kernel cache key includes a digest of the native headers (`warp/native/*.h`, which kernels
+  include when they are compiled at runtime) and of the native libraries, so editing a header such as
+  `tile_solve.h` no longer serves stale kernels (upstream Warp only keys the cache by version).
 - `scripts/build_warp.sh` clears Warp's kernel cache (`~/.cache/warp`) at the end of the build.
   Do not rebuild while Warp programs are running; set `WARP_CACHE_PATH` to give an install its own cache.
 - Warp tests need the LFS assets. The fork does not host them; install `git-lfs` and fetch them
