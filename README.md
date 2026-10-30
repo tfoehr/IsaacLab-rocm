@@ -238,8 +238,19 @@ zero-copy, regardless of import order or a system ROCm in the loader path.
 for early-exit solver loops (`wp.capture_while`, `wp.capture_if`). Warp emulates them on HIP
 (`warp.config.hip_conditional_graph_emulation`): the capture is split into graph segments,
 a captured kernel publishes each condition to pinned host memory, and `wp.capture_launch`
-replays the segments as a host-driven program. The overhead is about 6 us per evaluated
-condition on Strix Halo; solvers still exit as soon as they converge.
+replays the segments as a host-driven program. Solvers still exit as soon as they converge. Each
+evaluated condition costs one host round trip: a loop iteration with a trivial body takes about
+8 us on Strix Halo, of which ~6 us are the graph launch and the host noticing the published value
+(the GPU idles meanwhile). Measured on the workloads below, these round trips are 0.6-0.8% of the
+time of MuJoCo-Warp and G1 training and ~8% of Kamino's DR Legs test.
+
+Two alternatives were measured and not adopted. Predicated unrolling (capturing several loop
+iterations whose kernels return early once the condition is false, so the host checks only every
+K iterations) needs a guard argument in every generated kernel and guarded replacements for
+memsets and copies, and saves at most the round trips themselves; running a loop to its maximum
+iteration count without any host check would let the host run ahead, but Isaac Lab's MuJoCo-Warp
+solver allows 100 iterations and converges in ~7, so the no-op iterations would cost more than the
+round trips.
 
 **Graph-captured allocations.** HIP graph memory nodes can be invalidated when another graph
 is captured (CUDA guarantees they stay valid for the graph's lifetime). On HIP, arrays
@@ -255,7 +266,20 @@ also applies when PyTorch initializes HIP first.
 **ROCm queue wedge.** Relaunching a graph of ~600 or more nodes back to back without host
 synchronization wedges the device queue on ROCm 7.13: the command processor stops reading it, no
 kernel runs, and the host blocks in `hipGraphLaunch`. Warp waits for earlier graph launches on a
-stream once more than `warp.config.hip_graph_max_inflight_nodes` (8192) nodes are queued.
+stream once more than `warp.config.hip_graph_max_inflight_nodes` (8192) nodes are queued. It
+tracks completion with an event per 1024 queued nodes rather than per launch (an event record costs
+~4.4 us of host time on ROCm, which sat on the critical path of emulated loops), and restarts the
+count whenever an emulated conditional has read a condition, since the stream has drained then.
+
+**Tile solvers without MathDx.** NVIDIA's cuSolverDx does not exist for AMD GPUs, so tile Cholesky
+factorizations and triangular solves (`wp.tile_cholesky`, `wp.tile_cholesky_solve`,
+`wp.tile_lower_solve`, ...) use Warp's portable fallback. Its single right-hand-side solve ran on
+one thread, and it dominated the physics: MuJoCo-Warp's fused mass-matrix factor-and-solve kernel
+took 39% of the GPU time in G1 training, Kamino's sparse Cholesky solve 82% in the DR Legs test. On
+HIP the solve now runs on a whole wavefront (each lane owns rows, values are broadcast with
+`v_readlane`), and the factorization's inner loops are unrolled so that several shared-memory loads
+are in flight (same operations in the same order, bitwise identical factors). Per call: 2.86 ms ->
+1.19 ms (MuJoCo-Warp, 4096 worlds) and 208 us -> 59 us (Kamino).
 
 **Graph-capturable sorts.** With many segments, rocPRIM's segmented radix sort reads partition
 counts back to the host, which a graph capture rejects; Warp sorts without partitioning while
@@ -270,8 +294,12 @@ and contact, ray-cast and IMU sensors.
 
 ## Status and known issues
 
-- Performance tuning is in progress (see `logs/`); measured with 1024 envs while the GPU was
-  shared with other work: Cartpole ~138k, Ant ~65k, Flat G1 ~20k, Rough G1 ~15k env steps/s.
+- Performance: with 4096 envs (RSL-RL, median env steps/s over iterations 2-11), before -> after
+  the tile-solver and launch-budget changes in Warp (2026-10-30): `Isaac-Velocity-Flat-G1` 29.8k ->
+  37.6k, `IsaacContrib-Velocity-Flat-MicroDuck` 42.9k -> 47.7k, `ROCm-Lift-Cube-SO101` 82.6k -> 83.8k.
+  MuJoCo-Warp `testspeed` humanoid with 8192 worlds: 808k -> 884k steps/s. Kamino DR Legs dynamics
+  test: 297 s -> 143 s. Older numbers in `logs/` were measured with 1024 envs while the GPU was shared
+  with other work.
 - The OpenGL viewer is untested on ROCm; train headless, or watch training and trained policies
   in the browser with the viser visualizer (`--viz viser`, serves `http://localhost:8080`).
 - AMD GPUs have no independent thread scheduling, so GPU code where one lane waits on another
@@ -279,7 +307,10 @@ and contact, ray-cast and IMU sensors.
   desktop freezes until a reboot). Newton's viewer picking used such a lock; it is now lock-free.
 - HIP has no conditional graph nodes, so Warp emulates `wp.capture_while`/`wp.capture_if` with
   host-driven segments. Solvers that iterate inside captured graphs pay for one host round trip
-  per condition (e.g. Kamino's APGD solver: the DR Legs dynamics test takes ~5 min).
+  (~8 us) per condition, and the host waits inside `wp.capture_launch` until the last loop has
+  finished, so it cannot queue the next work ahead (see "Conditional graphs").
+- Kamino's DR Legs dynamics test (2.5 min) spends ~40% of the GPU's time idle between its many
+  small graph nodes (~2.5 us each on ROCm) and ~8% in condition round trips.
 - Exit status: PyTorch's Kineto registers a rocprofiler-sdk tool whose `atexit` handler calls
   `_exit(0)`, so with the PyTorch ROCm nightly every Python process that used the GPU exits with
   status 0, even after an exception. `scripts/env.sh` sets `ROCPROFILER_REGISTER_ENABLED=0`, which
