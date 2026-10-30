@@ -4,6 +4,8 @@
 # Components (tag stable-2026-10-30): warp-rocm 785afd73cfaa, newton 757d8d2147bf,
 # mujoco_warp 4642c8523fea, isaaclab b03345bbf2c9. Includes the asset-importer packages (requirements/importers.txt).
 #
+# A fresh install that follows README.md reproduces every non-comment line below exactly.
+#
 # The editable installs of the local checkouts (third_party/*, isaaclab/*) are listed as
 # comments: they point at local paths and are installed by scripts/build_warp.sh and
 # scripts/install.sh. Use this file as a constraints file (see README "Reproducing the
@@ -149,7 +151,7 @@ protobuf==7.37.0rc1
 psutil==7.2.2
 ptyprocess==0.7.0
 pure-eval==0.2.4
-py-spy==0.4.2
+# py-spy==0.4.2 (sampling profiler installed by hand in the validated venv; the setup scripts do not install it)
 pycollada==0.9.3
 pydantic==2.14.1
 pydantic-core==2.50.1
