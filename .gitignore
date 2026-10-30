@@ -1,6 +1,7 @@
-# Environment and build outputs
+# Environment and build outputs (.warp-cache: a per-install WARP_CACHE_PATH)
 .venv/
 __pycache__/
+.warp-cache/
 logs/
 # Robot assets converted by tools/convert_assets.py (licenses forbid committing them)
 assets_generated/
