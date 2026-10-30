@@ -97,7 +97,7 @@ Warp tests: `python tools/run_warp_tests.py -j 6` (one process per test module; 
 ### Health check
 
 ```bash
-scripts/healthcheck.sh       # ~5 min, from any directory; no need to source env.sh first
+scripts/healthcheck.sh       # ~5 min (~7 min on a fresh install: cold kernel cache); from any directory, no need to source env.sh first
 ```
 
 It runs the GPU jobs one after another and prints a PASS/FAIL line per check, then
