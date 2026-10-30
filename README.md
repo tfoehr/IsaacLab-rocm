@@ -41,13 +41,13 @@ and is deliberately not used.
 
 ```bash
 git clone https://github.com/tfoehr/IsaacLab-rocm.git && cd IsaacLab-rocm
-GIT_LFS_SKIP_SMUDGE=1 git clone -b stable-2026-10-29 https://github.com/tfoehr/warp.git third_party/warp-rocm
-git clone -b stable-2026-10-29 https://github.com/tfoehr/newton.git third_party/newton
-git clone -b stable-2026-10-29 https://github.com/tfoehr/mujoco_warp.git third_party/mujoco_warp
+GIT_LFS_SKIP_SMUDGE=1 git clone -b stable-2026-10-30 https://github.com/tfoehr/warp.git third_party/warp-rocm
+git clone -b stable-2026-10-30 https://github.com/tfoehr/newton.git third_party/newton
+git clone -b stable-2026-10-30 https://github.com/tfoehr/mujoco_warp.git third_party/mujoco_warp
 git clone https://github.com/isaac-sim/IsaacLab.git isaaclab && git -C isaaclab checkout b03345bbf
 ```
 
-The `stable-2026-10-29` tags mark the state validated above; the branches carry newer work.
+The `stable-2026-10-30` tags mark the state validated above; the branches carry newer work.
 
 ```bash
 uv venv --python 3.12 .venv
@@ -68,15 +68,15 @@ Then check the install with `scripts/healthcheck.sh` (see Usage).
 
 ### Reproducing the validated environment
 
-`requirements/lock-2026-10-29.txt` is the `uv pip freeze` of the validated venv (component
-commits in its header, which match the `stable-2026-10-29` tags). The local checkouts
+`requirements/lock-2026-10-30.txt` is the `uv pip freeze` of the validated venv (component
+commits in its header, which match the `stable-2026-10-30` tags). The local checkouts
 (`third_party/*`, `isaaclab/*`) appear there only as comments because they are editable
 installs of local paths; `build_warp.sh` and `install.sh` install them. To pin every other
 package to exactly the validated versions, pass the lock file as a constraints file to the
 last step of the setup above:
 
 ```bash
-scripts/install.sh --constraint requirements/lock-2026-10-29.txt
+scripts/install.sh --constraint requirements/lock-2026-10-30.txt
 ```
 
 ## Usage

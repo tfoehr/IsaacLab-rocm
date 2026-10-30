@@ -1,0 +1,220 @@
+# Exact package set of the validated IsaacLab-rocm venv (2026-10-30), from
+#   uv pip freeze --python .venv/bin/python
+# Python 3.12.13, Linux 7.3.0 (CachyOS), Ryzen AI MAX+ 395 / Radeon 8060S (gfx1151).
+# Components (tag stable-2026-10-30): warp-rocm 785afd73cfaa, newton 757d8d2147bf,
+# mujoco_warp 4642c8523fea, isaaclab b03345bbf2c9. Includes the asset-importer packages (requirements/importers.txt).
+#
+# The editable installs of the local checkouts (third_party/*, isaaclab/*) are listed as
+# comments: they point at local paths and are installed by scripts/build_warp.sh and
+# scripts/install.sh. Use this file as a constraints file (see README "Reproducing the
+# validated environment"):
+#   scripts/install.sh --constraint requirements/lock-2026-10-30.txt
+absl-py==2.5.1
+alphashape==1.3.1
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+asttokens==3.0.2
+attrs==26.1.0
+blinker==1.9.0
+botocore==1.43.118
+cbor2==6.1.5
+certifi==2026.10.23
+charset-normalizer==3.5.2
+click==8.5.0
+click-log==0.4.0
+cloudpickle==3.1.2
+cmeel==0.61.0
+cmeel-assimp==6.0.5
+cmeel-boost==1.90.0
+cmeel-console-bridge==1.0.2.3
+cmeel-octomap==1.10.0
+cmeel-qhull==8.0.2.1
+cmeel-tinyxml2==11.0.0
+cmeel-urdfdom==6.0.0
+cmeel-zlib==1.3.2
+coacd==1.0.14
+coal==3.0.3
+comm==0.2.3
+configargparse==1.8.0
+contourpy==1.4.0
+cycler==0.12.1
+daqp==0.8.5
+dash==4.5.0rc2
+eigenpy==3.13.0
+einops==0.9.0.dev0
+etils==1.14.0
+execnet==2.1.2
+executing==2.3.0
+farama-notifications==0.0.6
+fast-simplification==0.2.0
+fastjsonschema==2.22.2
+filelock==4.2.4
+flask==3.1.3
+fonttools==4.67.0
+fsspec==2026.9.0
+gitdb==4.0.12
+gitpython==3.2.1
+glfw==2.11.0
+grpcio==1.85.0rc1
+gymnasium==1.4.0
+h11==0.16.0
+h5py==3.16.0
+hf-xet==1.8.0.dev0
+hidapi==0.15.0
+httpcore==1.0.9
+httpx==0.28.1
+huggingface-hub==1.33.0
+hydra-core==1.4.0rc2
+idna==3.20
+imageio==2.38.1
+imgui-bundle==1.93.0
+importlib-metadata==10.1.0
+iniconfig==2.3.1
+ipython==9.17.1
+ipython-pygments-lexers==1.1.1
+ipywidgets==8.1.9
+# editable (local checkout): isaaclab/source/isaaclab
+# editable (local checkout): isaaclab/source/isaaclab_assets
+# editable (local checkout): isaaclab/source/isaaclab_contrib
+# editable (local checkout): isaaclab
+# editable (local checkout): isaaclab/source/isaaclab_experimental
+# editable (local checkout): isaaclab/source/isaaclab_newton
+# editable (local checkout): isaaclab/source/isaaclab_ov
+# editable (local checkout): isaaclab/source/isaaclab_physx
+# editable (local checkout): isaaclab/source/isaaclab_ppisp
+# editable (local checkout): isaaclab/source/isaaclab_rl
+# editable (local checkout): extensions/isaaclab_rocm_robots
+# editable (local checkout): isaaclab/source/isaaclab_tasks
+# editable (local checkout): isaaclab/source/isaaclab_tasks_experimental
+# editable (local checkout): isaaclab/source/isaaclab_visualizers
+isaacsim-asset-isolated==6.2.0.0
+isaacsim-robot-schema==6.2.0.0
+itsdangerous==2.2.0
+janus==2.0.0
+jedi==0.20.1
+jinja2==3.1.6
+jmespath==1.1.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+jupyter-core==5.9.1
+jupyterlab-widgets==3.0.17
+kiwisolver==1.5.1
+lazy-loader==0.6
+libcoal==3.0.3
+libpinocchio==4.1.0
+llvmlite==0.50.0
+loop-rate-limiters==1.2.0
+markdown==3.11.2
+markdown-it-py==4.2.0
+markupsafe==3.0.4
+matplotlib==3.11.2
+matplotlib-inline==0.2.2
+mdurl==0.1.2
+meshio==5.3.5
+ml-dtypes==0.6.0
+mpmath==1.3.0
+msgspec==0.22.0
+mujoco==3.15.0
+mujoco-usd-converter==0.7.0
+# editable (local checkout): third_party/mujoco_warp
+narwhals==2.27.1
+nbformat==5.11.1
+nest-asyncio==1.6.0
+networkx==3.7
+# editable (local checkout): third_party/newton
+newton-usd-schemas==0.6.0
+numba==0.68.1rc2
+numpy==2.5.4
+numpy-stl==4.1.3
+omegaconf==2.4.1rc1
+omniverseclient==2.74.0
+onnx==1.23.2
+onnx-ir==1.1.0
+onnxscript==0.7.3.dev20261007
+open3d==0.20.0
+ovstage==0.2.1.385922
+packaging==26.3
+parso==0.8.7
+pexpect==4.9.0
+pillow==13.0.0
+pin==4.1.0
+pin-pink==3.3.0
+platformdirs==4.13.5
+plotly==7.1.0
+pluggy==1.7.0
+prettytable==3.18.0
+prompt-toolkit==3.0.53
+protobuf==7.37.0rc1
+psutil==7.2.2
+ptyprocess==0.7.0
+pure-eval==0.2.4
+py-spy==0.4.2
+pycollada==0.9.3
+pydantic==2.14.1
+pydantic-core==2.50.1
+pyfqmr==0.5.0
+pyglet==2.1.19
+pygments==2.21.0
+pyopengl==4.0.0a8
+pyopengl-accelerate==4.0.0a8
+pyparsing==3.3.3
+pytest==9.2.0
+pytest-timeout==2.4.0
+pytest-xdist==3.8.0
+python-dateutil==2.9.0.post0
+python-utils==4.1.4
+pyvers==0.2.3
+pyyaml==6.0.3
+qpsolvers==4.13.0
+referencing==0.37.0
+regex==2026.9.29
+requests==2.34.2
+resolve-robotics-uri-py==0.6.0
+retrying==1.4.2
+rich==14.3.4
+rocm==7.13.0a20260411
+rocm-sdk-core==7.13.0a20260411
+rocm-sdk-devel==7.13.0a20260411
+rocm-sdk-libraries-gfx1151==7.13.0a20260411
+rpds-py==2026.9.1
+rsl-rl-lib==5.5.1
+rtree==1.4.1
+safetensors==0.9.0rc1
+scipy==1.18.1
+setuptools==81.0.0
+shapely==2.2.0
+shellingham==1.5.4
+six==1.17.0
+smmap==5.0.3
+stack-data==0.6.3
+starlette==1.9.0
+sympy==1.14.0
+tensorboard==2.21.0
+tensorboard-data-server==0.7.2
+tensordict==0.15.2
+tinyobjloader==2.0.0rc13
+tokenizers==0.23.0rc0
+torch==2.12.0a0+rocm7.13.0a20260411
+torchvision==0.27.0a0+rocm7.13.0a20260411
+tqdm==4.70.1
+traitlets==5.16.1
+transformers==5.10.4
+trimesh==5.1.1
+triton==3.7.0+git18f89f64.rocm7.13.0a20260411
+typer==0.27.3
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+urdf-usd-converter==0.3.4
+urllib3==2.8.0
+usd-exchange==3.0.1
+usd-optimize==1.3.1
+usd-validation-nvidia==1.23.0
+viser==1.1.1
+# editable (local checkout): third_party/warp-rocm
+wcwidth==0.9.3
+websockets==16.1.1
+werkzeug==3.1.9
+widgetsnbextension==4.0.16
+zipp==4.1.2
+zstandard==0.25.0
