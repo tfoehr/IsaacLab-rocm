@@ -1,5 +1,6 @@
 # Component repositories of IsaacLab-rocm and the branches that carry the ROCm port.
 # `repo` is where the branch is published; `tag` marks the last known-good state.
+# scripts/stable.sh reads this file; docs/UPDATING.md describes updates and rollbacks.
 
 [warp]
 path = "third_party/warp-rocm"
@@ -29,3 +30,4 @@ tag = "stable-2026-10-30"
 path = "isaaclab"
 upstream = "https://github.com/isaac-sim/IsaacLab.git"
 base = "b03345bbf"   # used unmodified; check out this upstream commit
+branch = "rocm"      # local branch at `base`; Isaac Lab is not forked, so its stable tags are local only

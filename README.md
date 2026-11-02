@@ -32,6 +32,7 @@ G1, H1 and ANYmal examples match the CPU.
 - `isaaclab`: upstream Isaac Lab at commit `b03345bbf`, unmodified
 - `components.toml`: upstream, base revision and branch of each component
 - `scripts/`: environment, build and install scripts; `tools/run_warp_tests.py`: crash-isolated Warp test runner
+- `scripts/stable.sh`: status of all repositories, switch to or create a `stable-*` state ([docs/UPDATING.md](docs/UPDATING.md))
 
 ## Setup
 
@@ -120,6 +121,10 @@ It refuses to start while another `train.py`/`play.py`/test process is running. 
 **Rule: do not upgrade ROCm, PyTorch, the kernel or linux-firmware without running the health
 check before and after.** If it fails afterwards, go back to the previous versions (see
 "Reproducing the validated environment" under Setup).
+
+[docs/UPDATING.md](docs/UPDATING.md) describes how to update ROCm/PyTorch nightlies and the
+components (Isaac Lab, Newton, MuJoCo-Warp, Warp), validate and tag a new stable state, and roll
+back; `scripts/stable.sh status` shows where every repository stands.
 
 ## Robots for experiments
 
